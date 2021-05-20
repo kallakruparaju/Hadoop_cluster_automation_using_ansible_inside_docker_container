@@ -1,0 +1,52 @@
+---
+# tasks file for namenode
+       
+ 
+- name: namenode_ip
+  shell: cat namenode_ip
+  register: namenode_ip
+  delegate_to: localhost 
+  
+- name: Create Directory 
+  file:
+       path: nn
+       state: directory
+  register: namenode_dir_created
+  
+- name:
+  shell: cat /etc/hadoop/core-site.xml
+  register: namenode_coresite_file  	    
+   
+- name: Configure core-site.xml
+  lineinfile: 
+       path: /etc/hadoop/core-site.xml
+       insertafter: '^<configuration>'
+       line: "<property>\n<name>fs.default.name</name>\n<value>hdfs://{{ namenode_ip.stdout }}:9001</value>\n</property>"
+  when: "'<property>' not in namenode_coresite_file.stdout" 
+  
+- name:
+  shell: cat /etc/hadoop/hdfs-site.xml
+  register: namenode_hdfssite_file  
+  
+- name: Configuring hdfs-site.xml
+  lineinfile:
+       path: /etc/hadoop/hdfs-site.xml
+       insertafter: '^<configuration>'
+       line: "<property>\n<name>dfs.name.dir</name>\n<value>/nn</value>\n</property>"
+  when: "'<property>' not in namenode_hdfssite_file.stdout" 
+   
+- name: Format Name Node
+  shell: echo Y | hadoop namenode -format
+  when: namenode_dir_created.changed == true 
+  
+- name: checking Hadoop is running 
+  shell: jps
+  become: true
+  register: namenode_state
+   
+- name: Start Service 
+  shell: hadoop-daemon.sh start namenode
+  when: "'NameNode' not in namenode_state.stdout"   
+     
+- name: Setting up NameNode Services Permanent
+  shell: "echo -e hadoop-daemon.sh start namenode >> /etc/rc.local"

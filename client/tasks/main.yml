@@ -1,0 +1,35 @@
+---
+# tasks file for client
+        
+ 
+- name: jobtracker_ip
+  shell: cat jobtracker_ip
+  register: jobtracker_ip
+  delegate_to: localhost 
+   
+- name: namenode_ip
+  shell: cat namenode_ip
+  register: namenode_ip
+  delegate_to: localhost 
+     
+- name:
+  shell: cat /etc/hadoop/core-site.xml
+  register: client_coresite_file  	    
+   
+- name: Configure core-site.xml
+  lineinfile: 
+       path: /etc/hadoop/core-site.xml
+       insertafter: '^<configuration>'
+       line: "<property>\n<name>fs.default.name</name>\n<value>hdfs://{{ namenode_ip.stdout }}:9001</value>\n</property>"
+  when: "'<property>' not in client_coresite_file.stdout" 
+  
+- name:
+  shell: cat /etc/hadoop/mapred-site.xml
+  register: client_mapredsite_file 
+  
+- name: Configuring mapred-site.xml
+  lineinfile:
+       path: /etc/hadoop/mapred-site.xml
+       insertafter: '^<configuration>'
+       line: "<property>\n<name>mapred.job.tracker</name>\n<value>{{ jobtracker_ip.stdout }}:9002</value>\n</property>"
+  when: "'<property>' not in client_mapredsite_file.stdout"

@@ -1,0 +1,47 @@
+---
+# tasks file for datanode
+
+
+- name: namenode_ip
+  shell: cat namenode_ip
+  register: namenode_ip
+  delegate_to: localhost 
+  
+- name: Create Directory 
+  file:
+       path: dn
+       state: directory
+  
+- name: checking hdfs-site file
+  shell: cat /etc/hadoop/core-site.xml
+  register: namenode_coresite_file  	    
+   
+- name: Configure core-site.xml
+  lineinfile: 
+       path: /etc/hadoop/core-site.xml
+       insertafter: '^<configuration>'
+       line: "<property>\n<name>fs.default.name</name>\n<value>hdfs://{{ namenode_ip.stdout }}:9001</value>\n</property>"
+  when: "'<property>' not in namenode_coresite_file.stdout" 
+  
+- name: checking core-site file
+  shell: cat /etc/hadoop/hdfs-site.xml
+  register: namenode_hdfssite_file  
+  
+- name: Configuring hdfs-site.xml
+  lineinfile:
+       path: /etc/hadoop/hdfs-site.xml
+       insertafter: '^<configuration>'
+       line: "<property>\n<name>dfs.data.dir</name>\n<value>/dn</value>\n</property>"
+  when: "'<property>' not in namenode_hdfssite_file.stdout" 
+  
+- name: checking Hadoop is running 
+  shell: jps
+  become: true
+  register: datanode_state 
+   
+- name: Start Service 
+  shell: hadoop-daemon.sh start datanode
+  when: "'DataNode' not in datanode_state.stdout" 
+     
+- name: Setting up DataNode Services Permanent
+  shell: "echo -e hadoop-daemon.sh start datanode >> /etc/rc.local"

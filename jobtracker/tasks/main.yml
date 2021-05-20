@@ -1,0 +1,46 @@
+---
+# tasks file for jobtracker
+
+- name: jobtracker_ip
+  shell: cat jobtracker_ip
+  register: jobtracker_ip
+  delegate_to: localhost 
+   
+- name: namenode_ip
+  shell: cat namenode_ip
+  register: namenode_ip
+  delegate_to: localhost 
+     
+- name:
+  shell: cat /etc/hadoop/core-site.xml
+  register: jobtracker_coresite_file  	    
+   
+- name: Configure core-site.xml
+  lineinfile: 
+       path: /etc/hadoop/core-site.xml
+       insertafter: '^<configuration>'
+       line: "<property>\n<name>fs.default.name</name>\n<value>hdfs://{{ namenode_ip.stdout }}:9001</value>\n</property>"
+  when: "'<property>' not in jobtracker_coresite_file.stdout" 
+  
+- name:
+  shell: cat /etc/hadoop/mapred-site.xml
+  register: jobtracker_mapredsite_file  
+  
+- name: Configuring mapred-site.xml
+  lineinfile:
+       path: /etc/hadoop/mapred-site.xml
+       insertafter: '^<configuration>'
+       line: "<property>\n<name>mapred.job.tracker</name>\n<value>{{ jobtracker_ip.stdout  }}:9002</value>\n</property>"
+  when: "'<property>' not in jobtracker_mapredsite_file.stdout" 
+  
+- name: checking Hadoop is running 
+  shell: jps
+  become: true
+  register: jobtracker_state 
+   
+- name: Start Service 
+  shell: hadoop-daemon.sh start jobtracker
+  when: "'JobTracker' not in jobtracker_state.stdout" 
+
+- name: Setting up Jobtracker Services Permanent
+  shell: "echo -e hadoop-daemon.sh start jobtracker >> /etc/rc.local"
