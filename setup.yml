@@ -1,0 +1,257 @@
+- name: Dynamic Docker Configuration
+  hosts: localhost
+  tasks:
+    - name: pulling docker image from dockerhub
+      docker_image:
+        name: "kallakruparaju/docker-ssh:v1"
+        source: pull
+        
+    - name: launching docker container
+      docker_container:
+           name: "hadoop"
+           image: "kallakruparaju/docker-ssh:v1"
+           detach: yes
+           state: started
+           interactive: yes
+           tty: yes
+           
+    - name: Retriving ip address of running Container
+      docker_container_info:
+        name: "hadoop"
+      register: container
+
+    - debug:
+            var: container.container.NetworkSettings.IPAddress
+
+    - name: Updating Inventory file
+      blockinfile:
+        path: /home/kruparaju/ipadr.txt
+        block: |
+                [docker]
+                {{ container['container']['NetworkSettings']['IPAddress'] }} ansible_ssh_user=root ansible_ssh_pass=kruparaju  ansible_connection=ssh  
+    
+    - name: Refresh the inventory file
+      meta: refresh_inventory 
+      
+- name: Configuring hadoop env inside Docker container
+  hosts: docker 
+  tasks:
+  
+  - name: copying hadoop
+    copy:
+         src: hadoop-1.2.1-1.x86_64.rpm
+         dest: /root/hadoop-1.2.1-1.x86_64.rpm
+  
+  - name: copying jdk
+    copy:
+         src: jdk-8u171-linux-x64.rpm
+         dest: /root/jdk-8u171-linux-x64.rpm
+  
+  - name: Installing Java Software
+    yum:
+      name: "jdk-8u171-linux-x64.rpm"
+      state: present
+    register: java 
+    
+  - name: Installing Hadoop Software
+    shell: "rpm -ivh hadoop-1.2.1-1.x86_64.rpm --force --nodeps"
+    register: hadoop
+    changed_when: false
+    when: java.rc == 0
+    
+- name: launching namenode
+  hosts: localhost
+  tasks:
+  
+    - name: docker images
+      shell: "docker images"
+      register: images
+     
+  
+    - name: hadoop image commit
+      shell: "docker commit hadoop hadoop:v1"
+      when: "'hadoop' not in images.stdout" 
+  
+    - name: launching container for namenode
+      docker_container:
+           name: "hadoop-namenode"
+           image: "hadoop:v1"
+           detach: yes
+           state: started
+           interactive: yes
+           tty: yes
+   
+    - name: Retriving ip address of running Container
+      docker_container_info:
+        name: "hadoop-namenode"
+      register: hadoop_namenode
+   
+    - debug:
+            var: hadoop_namenode.container.NetworkSettings.IPAddress
+   
+    - name: Updating Inventory file
+      blockinfile:
+        path: /home/kruparaju/ipadr.txt
+        block: |
+                [hadoop]
+                {{ hadoop_namenode['container']['NetworkSettings']['IPAddress'] }} ansible_ssh_user=root ansible_ssh_pass=kruparaju  ansible_connection=ssh 
+   
+    - name: Refresh the inventory file
+      meta: refresh_inventory 
+   
+    - name: Copy namenode IP in file
+      copy: 
+        content: "{{  hadoop_namenode['container']['NetworkSettings']['IPAddress']  }}"
+        dest: namenode_ip
+        
+- hosts: hadoop 
+  roles:
+  - name: "configuring namenode"
+    role: namenode
+
+- name: launching datanode
+  hosts: localhost
+  tasks:
+    - name: launching container for datanode
+      docker_container:
+           name: "hadoop-datanode"
+           image: "hadoop:v1"
+           detach: yes
+           state: started
+           interactive: yes
+           tty: yes
+   
+    - name: Retriving ip address of running Container
+      docker_container_info:
+        name: "hadoop-datanode"
+      register: hadoop_datanode
+   
+    - debug:
+            var: hadoop_datanode.container.NetworkSettings.IPAddress
+   
+    - name: Updating Inventory file
+      blockinfile:
+        path: /home/kruparaju/ipadr.txt
+        block: |
+                [hadoop]
+                {{ hadoop_datanode['container']['NetworkSettings']['IPAddress'] }} ansible_ssh_user=root ansible_ssh_pass=kruparaju  ansible_connection=ssh 
+   
+    - name: Refresh the inventory file
+      meta: refresh_inventory 
+      
+- hosts: hadoop 
+  roles:
+  - name: "configuring datanode"
+    role: datanode
+     
+
+
+- name: launching jobtracker
+  hosts: localhost
+  tasks:
+    - name: launching container for jobtracker
+      docker_container:
+           name: "hadoop-jobtracker"
+           image: "hadoop:v1"
+           detach: yes
+           state: started
+           interactive: yes
+           tty: yes
+   
+    - name: Retriving ip address of running Container
+      docker_container_info:
+        name: "hadoop-jobtracker"
+      register: hadoop_jobtracker
+   
+    - debug:
+            var: hadoop_jobtracker.container.NetworkSettings.IPAddress
+   
+    - name: Updating Inventory file
+      blockinfile:
+        path: /home/kruparaju/ipadr.txt
+        block: |
+                [hadoop]
+                {{ hadoop_jobtracker['container']['NetworkSettings']['IPAddress'] }} ansible_ssh_user=root ansible_ssh_pass=kruparaju  ansible_connection=ssh 
+   
+    - name: Refresh the inventory file
+      meta: refresh_inventory 
+    
+    - name: Copy jobtracker IP in file
+      copy: 
+        content: "{{  hadoop_jobtracker['container']['NetworkSettings']['IPAddress']  }}"
+        dest: jobtracker_ip
+     
+- hosts: hadoop 
+  roles:
+  - name: "configuring jobtracker"
+    role: jobtracker
+    
+- name: launching tasktracker
+  hosts: localhost
+  tasks:
+    - name: launching container for tasktracker
+      docker_container:
+           name: "hadoop-tasktracker"
+           image: "hadoop:v1"
+           detach: yes
+           state: started
+           interactive: yes
+           tty: yes
+   
+    - name: Retriving ip address of running Container
+      docker_container_info:
+        name: "hadoop-tasktracker"
+      register: hadoop_tasktracker
+   
+    - debug:
+            var: hadoop_tasktracker.container.NetworkSettings.IPAddress
+   
+    - name: Updating Inventory file
+      blockinfile:
+        path: /home/kruparaju/ipadr.txt
+        block: |
+                [hadoop]
+                {{ hadoop_tasktracker['container']['NetworkSettings']['IPAddress'] }} ansible_ssh_user=root ansible_ssh_pass=kruparaju  ansible_connection=ssh 
+   
+    - name: Refresh the inventory file
+      meta: refresh_inventory 
+     
+- hosts: hadoop 
+  roles:
+  - name: "configuring tasktracker"
+    role: tasktracker
+     
+- name: launching client
+  hosts: localhost
+  tasks:
+    - name: launching container for client
+      docker_container:
+           name: "hadoop-client"
+           image: "hadoop:v1"
+           detach: yes
+           state: started
+           interactive: yes
+           tty: yes
+   
+    - name: Retriving ip address of running Container
+      docker_container_info:
+        name: "hadoop-client"
+      register: hadoop_client
+   
+    - debug:
+            var: hadoop_client.container.NetworkSettings.IPAddress
+   
+    - name: Updating Inventory file
+      blockinfile:
+        path: /home/kruparaju/ipadr.txt
+        block: |
+                [hadoop]
+                {{ hadoop_client['container']['NetworkSettings']['IPAddress'] }} ansible_ssh_user=root ansible_ssh_pass=kruparaju  ansible_connection=ssh 
+   
+    - name: Refresh the inventory file
+      meta: refresh_inventory
+       
+- hosts: hadoop 
+  roles:
+  - name: "configuring client"
+    role: client    
